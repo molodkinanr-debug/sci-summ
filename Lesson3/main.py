@@ -1,31 +1,31 @@
 import sys
 import os
 
-print("🔍 Начало выполнения main.py...")
-print(f"📁 Текущая директория: {os.getcwd()}")
-print(f"🔧 Python path: {sys.path}")
+print(" Начало выполнения main.py...")
+print(f" Текущая директория: {os.getcwd()}")
+print(f" Python path: {sys.path}")
 
 # Добавляем текущую директорию в путь
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-print("✅ Добавлена текущая директория в sys.path")
+print(" Добавлена текущая директория в sys.path")
 
 try:
-    print("🔄 Пытаемся импортировать app.database.config...")
+    print(" Пытаемся импортировать app.database.config...")
     from app.database.config import engine, SessionLocal, Base
-    print("✅ app.database.config импортирован успешно")
+    print(" app.database.config импортирован успешно")
     
-    print("🔄 Пытаемся импортировать модели...")
+    print(" Пытаемся импортировать модели...")
     from app.models.user import User
-    print("✅ User импортирован успешно")
+    print(" User импортирован успешно")
     
     from app.models.account import AccountManager, Transaction
-    print("✅ AccountManager и Transaction импортированы успешно")
+    print(" AccountManager и Transaction импортированы успешно")
     
-    print("🎉 Все модули успешно импортированы!")
+    print(" Все модули успешно импортированы!")
     
 except ImportError as e:
-    print(f"❌ Ошибка импорта: {e}")
-    print("📁 Проверяем структуру файлов:")
+    print(f" Ошибка импорта: {e}")
+    print(" Проверяем структуру файлов:")
     for root, dirs, files in os.walk("."):
         level = root.replace(".", "").count(os.sep)
         indent = " " * 2 * level
@@ -37,13 +37,13 @@ except ImportError as e:
     sys.exit(1)
 
 def init_database():
-    print("🗄️ Начало инициализации базы данных...")
+    print(" Начало инициализации базы данных...")
     Base.metadata.create_all(bind=engine)
-    print("✅ Таблицы созданы")
+    print(" Таблицы созданы")
     
     db = SessionLocal()
     try:
-        print("👤 Создаем администратора...")
+        print(" Создаем администратора...")
         admin = db.query(User).filter(User.username == "admin").first()
         if not admin:
             admin = User(
@@ -56,12 +56,12 @@ def init_database():
             db.add(admin)
             db.commit()
             db.refresh(admin)
-            print("✅ Администратор создан")
+            print(" Администратор создан")
             
             admin_account = AccountManager(user_id=admin.id, balance=1000.0)
             db.add(admin_account)
         
-        print("👤 Создаем демо-пользователя...")
+        print(" Создаем демо-пользователя...")
         demo = db.query(User).filter(User.username == "demo").first()
         if not demo:
             demo = User(
@@ -87,25 +87,25 @@ def init_database():
             db.add(transaction)
         
         db.commit()
-        print("🎉 База данных инициализирована!")
+        print(" База данных инициализирована!")
         
         # Показываем результаты
         print("\n📊 Созданные пользователи:")
         users = db.query(User).all()
         for user in users:
             account = db.query(AccountManager).filter(AccountManager.user_id == user.id).first()
-            print(f"   👤 {user.username} - баланс: {account.balance}")
+            print(f"    {user.username} - баланс: {account.balance}")
             
     except Exception as e:
-        print(f"❌ Ошибка при работе с БД: {e}")
+        print(f" Ошибка при работе с БД: {e}")
         db.rollback()
         import traceback
         traceback.print_exc()
     finally:
         db.close()
-        print("🔚 Завершение работы")
+        print(" Завершение работы")
 
 if __name__ == "__main__":
-    print("🚀 Запуск функции init_database...")
+    print(" Запуск функции init_database...")
     init_database()
-    print("🏁 Скрипт завершен")
+    print(" Скрипт завершен")
