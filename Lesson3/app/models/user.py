@@ -17,5 +17,5 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    account = relationship("AccountManager", back_populates="user", uselist=False)
-    transactions = relationship("Transaction", back_populates="user")
+    account = relationship("app.models.account.Account", back_populates="user", uselist=False)
+   

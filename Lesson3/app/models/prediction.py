@@ -1,11 +1,13 @@
+from datetime import datetime  
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, Float, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from database.config import Base  # Измененный импорт
+from app.database.config import Base
+from sqlalchemy import event as Event
 
 class PDFFile(Base):
     __tablename__ = "pdf_files"
-    
+    __table_args__ = {'extend_existing': True}    
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     filename = Column(String(255), nullable=False)
@@ -17,35 +19,38 @@ class PDFFile(Base):
     # user = relationship("User", back_populates="pdf_files")
     # predictions = relationship("PredictionHistory", back_populates="pdf_file")
 
-class PredictionRequest(Base):
-    __tablename__ = "prediction_requests"
+class Prediction(Base):
+    __tablename__ = "predictions"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    pdf_file_id = Column(Integer, ForeignKey("pdf_files.id"))
-    input_text = Column(Text, nullable=False)
-    status = Column(String(20), default="pending")
-    cost = Column(Float, default=1.0)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    completed_at = Column(DateTime(timezone=True))
+    user_id = Column(Integer, ForeignKey("accounts.id"))
     
-    # user = relationship("User", back_populates="prediction_requests")
-    # pdf_file = relationship("PDFFile")
-
-class PredictionHistory(Base):
-    __tablename__ = "prediction_history"
+    # Входные данные
+    text = Column(Text)
+    model_type = Column(String)
     
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    request_id = Column(Integer, ForeignKey("prediction_requests.id"))
-    pdf_file_id = Column(Integer, ForeignKey("pdf_files.id"))
-    input_text = Column(Text)
+    # Выходные данные
     summary = Column(Text)
-    model_used = Column(String(50))
-    processing_time = Column(Float)
-    cost = Column(Float)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    status = Column(String)  # 'pending', 'completed', 'failed'
+    confidence_score = Column(Float, nullable=True)
     
-    # user = relationship("User", back_populates="prediction_history")
-    # request = relationship("PredictionRequest")
-    # pdf_file = relationship("PDFFile", back_populates="predictions")
+    # Метаданные
+    created_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+    
+    @staticmethod
+    def validate_text(text):
+        if not text or len(text.strip()) < 10:
+            raise ValueError("Invalid text length")
+        return text.strip()
+    
+    @staticmethod
+    def validate_model_type(model_type):
+        if model_type not in ['t5', 'bart', 'pegasus']:
+            raise ValueError("Invalid model type")
+        return model_type
+
+@Event.listens_for(Prediction, 'before_insert')
+def validate_prediction_data(mapper, connection, target):
+    target.text = Prediction.validate_text(target.text)
+    target.model_type = Prediction.validate_model_type(target.model_type)

@@ -1,0 +1,168 @@
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Enum as SQLEnum, Text, ForeignKey
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from datetime import datetime
+import enum
+
+Base = declarative_base()
+
+class UserRole(enum.Enum):
+    USER = "user"
+    ADMIN = "admin"
+    MODERATOR = "moderator"
+
+class TransactionType(enum.Enum):
+    DEPOSIT = "deposit"
+    WITHDRAWAL = "withdrawal"
+    PAYMENT = "payment"
+    REFUND = "refund"
+
+class RequestStatus(enum.Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    SUCCESS = "success"
+    ERROR = "error"
+    INSUFFICIENT_FUNDS = "insufficient_funds"
+
+class User(Base):
+    """Модель пользователя"""
+    __tablename__ = "users"
+
+    id = Column(String(36), primary_key=True, index=True)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    name = Column(String(100), nullable=False)
+    role = Column(SQLEnum(UserRole), default=UserRole.USER, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Связи
+    account = relationship("UserAccount", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    prediction_requests = relationship("PredictionRequest", back_populates="user")
+    prediction_history = relationship("PredictionHistory", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    transaction_history = relationship("TransactionHistory", back_populates="user", uselist=False, cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<User(id={self.id}, email={self.email}, name={self.name})>"
+
+class UserAccount(Base):
+    """Модель счета пользователя"""
+    __tablename__ = "user_accounts"
+
+    id = Column(String(36), primary_key=True, index=True)
+    user_id = Column(String(36), ForeignKey("users.id"), unique=True, nullable=False)
+    balance = Column(Float, default=0.0, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Связи
+    user = relationship("User", back_populates="account")
+    transactions = relationship("Transaction", back_populates="account")
+
+    def __repr__(self):
+        return f"<UserAccount(user_id={self.user_id}, balance={self.balance})>"
+
+class MLModel(Base):
+    """Модель ML модели"""
+    __tablename__ = "ml_models"
+
+    id = Column(String(36), primary_key=True, index=True)
+    name = Column(String(100), unique=True, nullable=False)
+    version = Column(String(50), nullable=False)
+    cost_per_request = Column(Float, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    max_input_length = Column(Integer, nullable=False)
+    description = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Связи
+    prediction_requests = relationship("PredictionRequest", back_populates="model")
+
+    def __repr__(self):
+        return f"<MLModel(name={self.name}, version={self.version}, cost={self.cost_per_request})>"
+
+class PDFFile(Base):
+    """Модель PDF файла"""
+    __tablename__ = "pdf_files"
+
+    id = Column(String(36), primary_key=True, index=True)
+    original_filename = Column(String(255), nullable=False)
+    file_path = Column(String(500), nullable=False)
+    file_size = Column(Integer, nullable=False)
+    extracted_text = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Связи
+    prediction_requests = relationship("PredictionRequest", back_populates="pdf_file")
+
+    def __repr__(self):
+        return f"<PDFFile(filename={self.original_filename}, size={self.file_size})>"
+
+class PredictionRequest(Base):
+    """Модель запроса на предсказание"""
+    __tablename__ = "prediction_requests"
+
+    id = Column(String(36), primary_key=True, index=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    pdf_file_id = Column(String(36), ForeignKey("pdf_files.id"), nullable=False)
+    model_id = Column(String(36), ForeignKey("ml_models.id"), nullable=False)
+    status = Column(SQLEnum(RequestStatus), default=RequestStatus.PENDING, nullable=False)
+    cost = Column(Float, nullable=False)
+    result = Column(Text)
+    error_message = Column(Text)
+    processed_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Связи
+    user = relationship("User", back_populates="prediction_requests")
+    pdf_file = relationship("PDFFile", back_populates="prediction_requests")
+    model = relationship("MLModel", back_populates="prediction_requests")
+
+    def __repr__(self):
+        return f"<PredictionRequest(user_id={self.user_id}, model={self.model.name}, status={self.status})>"
+
+class Transaction(Base):
+    """Модель транзакции"""
+    __tablename__ = "transactions"
+
+    id = Column(String(36), primary_key=True, index=True)
+    account_id = Column(String(36), ForeignKey("user_accounts.id"), nullable=False)
+    amount = Column(Float, nullable=False)
+    transaction_type = Column(SQLEnum(TransactionType), nullable=False)
+    description = Column(String(500))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Связи
+    account = relationship("UserAccount", back_populates="transactions")
+
+    def __repr__(self):
+        return f"<Transaction(account_id={self.account_id}, type={self.transaction_type}, amount={self.amount})>"
+
+class PredictionHistory(Base):
+    """Модель истории предсказаний пользователя"""
+    __tablename__ = "prediction_histories"
+
+    id = Column(String(36), primary_key=True, index=True)
+    user_id = Column(String(36), ForeignKey("users.id"), unique=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Связи
+    user = relationship("User", back_populates="prediction_history")
+
+    def __repr__(self):
+        return f"<PredictionHistory(user_id={self.user_id})>"
+
+class TransactionHistory(Base):
+    """Модель истории транзакций пользователя"""
+    __tablename__ = "transaction_histories"
+
+    id = Column(String(36), primary_key=True, index=True)
+    user_id = Column(String(36), ForeignKey("users.id"), unique=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Связи
+    user = relationship("User", back_populates="transaction_history")
+
+    def __repr__(self):
+        return f"<TransactionHistory(user_id={self.user_id})>"
